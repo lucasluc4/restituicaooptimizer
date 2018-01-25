@@ -9,6 +9,7 @@ import java.util.Map;
 public class DevbeerRestituicaoOptimizer {
 
     private static final double[] baseCalculo = criarBasesCalculo();
+    private static final int[][] restricoesPorIndividuo = criarRestricoes();
 
     private static double[] criarBasesCalculo() {
         double[] bases = new double[12];
@@ -28,27 +29,114 @@ public class DevbeerRestituicaoOptimizer {
         return bases;
     }
 
+    private static int[][] criarRestricoes() {
+
+        int[][] restricoesPorIndividuo = new int[12][];
+        restricoesPorIndividuo[0] = new int[0];
+        restricoesPorIndividuo[1] = new int[0];
+        restricoesPorIndividuo[2] = new int[0];
+
+        restricoesPorIndividuo[3] = new int[2];
+        restricoesPorIndividuo[3][0] = 0;
+        restricoesPorIndividuo[3][1] = 9;
+
+        restricoesPorIndividuo[4] = new int[0];
+        restricoesPorIndividuo[5] = new int[0];
+        restricoesPorIndividuo[6] = new int[0];
+        restricoesPorIndividuo[7] = new int[0];
+        restricoesPorIndividuo[8] = new int[0];
+        restricoesPorIndividuo[9] = new int[0];
+
+        restricoesPorIndividuo[10] = new int[2];
+        restricoesPorIndividuo[10][0] = 4;
+        restricoesPorIndividuo[10][1] = 8;
+
+
+        restricoesPorIndividuo[11] = new int[1];
+        restricoesPorIndividuo[11][0] = 9;
+
+        return restricoesPorIndividuo;
+    }
+
     private static double fitnessFunction(Genotype<IntegerGene> gt) {
-        Map<Integer, Double> map = new HashMap<>();
-        int[] integerList = gt.getChromosome().as(IntegerChromosome.class).toArray();
-        int index = 0;
-        for (int i : integerList) {
-            Double mappedDouble = map.get(i);
+        Map<Integer, Double> baseDeCalculoAcumuladaPorGrupo = new HashMap<>();
+        Map<Integer, Integer> titularMap = new HashMap<>();
+
+        int[] agrupamentoList = gt.getChromosome().as(IntegerChromosome.class).toArray();
+        int individuo = 0;
+        for (int i : agrupamentoList) {
+            Double mappedDouble = baseDeCalculoAcumuladaPorGrupo.get(i);
             if (mappedDouble == null) {
-                map.put(i, baseCalculo[index]);
+                baseDeCalculoAcumuladaPorGrupo.put(i, baseCalculo[individuo]);
+                titularMap.put(i, individuo);
             } else {
-                map.put(i, mappedDouble + baseCalculo[index]);
+                baseDeCalculoAcumuladaPorGrupo.put(i, mappedDouble + baseCalculo[individuo]);
+                if (baseCalculo[titularMap.get(i)] < baseCalculo[individuo]) {
+                    titularMap.put(i, individuo);
+                }
             }
-            index++;
+            individuo++;
+        }
+
+        if (!valido(agrupamentoList, titularMap)) {
+            return 10000;
         }
 
         double resultado = 0;
-        for (Map.Entry<Integer, Double> entry : map.entrySet()) {
+        for (Map.Entry<Integer, Double> entry : baseDeCalculoAcumuladaPorGrupo.entrySet()) {
             if (entry.getValue() > 0) {
                 resultado += entry.getValue();
             }
         }
 
+        return resultado/((double) baseDeCalculoAcumuladaPorGrupo.entrySet().size());
+    }
+
+    private static boolean valido(int[] agrupamentoList, Map<Integer, Integer> titularMap) {
+
+        for (int individuoAtual = 0; individuoAtual < baseCalculo.length; individuoAtual++) {
+            int grupoIndividuo = agrupamentoList[individuoAtual];
+
+            if (titularMap.get(grupoIndividuo) == individuoAtual || restricoesPorIndividuo[individuoAtual].length == 0) {
+                continue;
+            }
+
+            boolean obedeceuRestricao = false;
+            for (int restricao : restricoesPorIndividuo[individuoAtual]) {
+                if (agrupamentoList[restricao] == grupoIndividuo) {
+                    obedeceuRestricao = true;
+                }
+            }
+
+            if (obedeceuRestricao) {
+                continue;
+            }
+
+            return false;
+        }
+
+        return true;
+    }
+
+    private static double avaliarTotalBaseDeCalculo (int[] agrupamento) {
+        Map<Integer, Double> baseDeCalculoAcumuladaPorGrupo = new HashMap<>();
+        int individuo = 0;
+        for (int i : agrupamento) {
+            Double mappedDouble = baseDeCalculoAcumuladaPorGrupo.get(i);
+            if (mappedDouble == null) {
+                baseDeCalculoAcumuladaPorGrupo.put(i, baseCalculo[individuo]);
+            } else {
+                baseDeCalculoAcumuladaPorGrupo.put(i, mappedDouble + baseCalculo[individuo]);
+            }
+            individuo++;
+        }
+
+        double resultado = 0;
+        for (Map.Entry<Integer, Double> entry : baseDeCalculoAcumuladaPorGrupo.entrySet()) {
+            if (entry.getValue() > 0) {
+                resultado += entry.getValue();
+            }
+        }
         return resultado;
     }
 
@@ -71,6 +159,19 @@ public class DevbeerRestituicaoOptimizer {
                 .collect(EvolutionResult.toBestGenotype());
 
         // 335
-        System.out.println("Resultado: " + fitnessFunction(result));
+        double totalBaseDeCalculoAcumulada =
+                avaliarTotalBaseDeCalculo(result.getChromosome().as(IntegerChromosome.class).toArray());
+        double score = fitnessFunction(result);
+
+        System.out.println("Resultado de Base de Calculo Acumulada: " + totalBaseDeCalculoAcumulada);
+        System.out.println("Quantidade de Grupos: " + (totalBaseDeCalculoAcumulada/score));
+
+        StringBuilder stringBuilder = new StringBuilder("Agrupamento Resultante: ");
+        int[] agrupamento = result.getChromosome().as(IntegerChromosome.class).toArray();
+        for (int grupoIndividuo : agrupamento) {
+            stringBuilder.append(grupoIndividuo);
+            stringBuilder.append("|");
+        }
+        System.out.println(stringBuilder.toString());
     }
 }
